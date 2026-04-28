@@ -1,65 +1,381 @@
-import Image from "next/image";
+'use client';
+
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+
+type Response = {
+  name: string;
+  selected_dates: string[];
+};
 
 export default function Home() {
+  const [name, setName] = useState('');
+  const [selectedDates, setSelectedDates] = useState<string[]>([]);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [responses, setResponses] = useState<Response[]>([]);
+
+  const generateDates = () => {
+    const dates = [];
+    const start = new Date('2026-05-01T00:00:00');
+    const end = new Date('2026-09-30T00:00:00');
+
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      dates.push(new Date(d));
+    }
+
+    return dates;
+  };
+
+  const formatDateKey = (date: Date) => date.toISOString().split('T')[0];
+
+  const dates = generateDates();
+
+  const months = dates.reduce<Record<string, Date[]>>((acc, date) => {
+    const monthName = date.toLocaleString('default', {
+      month: 'long',
+      year: 'numeric',
+    });
+
+    if (!acc[monthName]) acc[monthName] = [];
+    acc[monthName].push(date);
+
+    return acc;
+  }, {});
+
+  const fetchResponses = async () => {
+    const { data, error } = await supabase
+      .from('availability_responses')
+      .select('name, selected_dates');
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    setResponses(data || []);
+  };
+
+  useEffect(() => {
+    fetchResponses();
+  }, []);
+
+  const toggleDate = (date: string) => {
+    setSelectedDates((prev) =>
+      prev.includes(date)
+        ? prev.filter((d) => d !== date)
+        : [...prev, date]
+    );
+  };
+
+  const loadExistingResponse = async () => {
+    if (!name.trim()) return;
+
+    const { data, error } = await supabase
+      .from('availability_responses')
+      .select('selected_dates')
+      .eq('name', name.trim())
+      .single();
+
+    if (error) {
+      setSelectedDates([]);
+      setStatusMessage('No saved response found for this name.');
+      return;
+    }
+
+    setSelectedDates(data.selected_dates || []);
+    setStatusMessage('Loaded saved availability. You can edit and resubmit.');
+  };
+
+  const handleSubmit = async () => {
+    if (!name.trim()) {
+      alert('Please enter your name.');
+      return;
+    }
+
+    const { error } = await supabase.from('availability_responses').upsert(
+      {
+        name: name.trim(),
+        selected_dates: selectedDates,
+      },
+      {
+        onConflict: 'name',
+      }
+    );
+
+    if (error) {
+      console.error(error);
+      alert('Something went wrong while saving.');
+      return;
+    }
+
+    alert('Availability saved!');
+    fetchResponses();
+  };
+
+  const getAvailableNames = (dateKey: string) => {
+    return responses
+      .filter((response) => response.selected_dates.includes(dateKey))
+      .map((response) => response.name);
+  };
+
+  const getUnavailableNames = (dateKey: string) => {
+    return responses
+      .filter((response) => !response.selected_dates.includes(dateKey))
+      .map((response) => response.name);
+  };
+
+  const getHeatColor = (dateKey: string) => {
+    if (responses.length === 0) return '#ffffff';
+
+    const availableCount = getAvailableNames(dateKey).length;
+    const fraction = availableCount / responses.length;
+
+    if (fraction === 0) return '#ffffff';
+    if (fraction <= 0.166) return '#e5f5e0';
+    if (fraction <= 0.332) return '#c7e9c0';
+    if (fraction <= 0.498) return '#a1d99b';
+    if (fraction <= 0.664) return '#74c476';
+    if (fraction <= 0.83) return '#41ab5d';
+    if (fraction < 1) return '#238b45';
+    return '#005a32';
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <main
+      style={{
+        padding: 40,
+        fontWeight: 400,
+        fontSize: 15,
+        background: 'white',
+        color: 'black',
+        minHeight: '100vh',
+      }}
+    >
+    
+    <h1 style={{color: 'black', fontSize: 30, fontWeight: 800}}
+    > HBB Summer Calendar
+    </h1>
+
+    <h1 style={{marginTop: 5}}> Welcome to the HBB summer calendar! Enter your name, select your availability, then submit. </h1>
+    <h1 style={{marginBottom: 5}}>  If your plans change, click "Load Previous Response" to edit your availability. </h1>
+
+      <div style={{ marginBottom: 30 }}>
+        <input
+          placeholder="Enter your name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          style={{
+            marginTop: 10,
+            padding: 10,
+            color: 'black',
+            background: 'white',
+            border: '1px solid #999',
+            borderRadius: 6,
+          }}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+
+        <button
+          onClick={handleSubmit}
+          style={{
+            width: 160,
+            marginLeft: 8,
+            padding: '10px 18px',
+            color: 'black',
+            background: '#e5e7eb',
+            border: '1px solid #999',
+            borderRadius: 8,
+            cursor: 'pointer',
+          }}
+        >
+          Submit
+        </button>
+        
+        <button
+          onClick={loadExistingResponse}
+          style={{
+            marginLeft: 10,
+            padding: '10px 14px',
+            color: 'black',
+            background: '#e5e7eb',
+            border: '1px solid #999',
+            borderRadius: 8,
+            cursor: 'pointer',
+          }}
+        > Load Previous Response
+        </button>
+
+        {statusMessage && (
+          <p style={{ marginTop: 10, color: 'black' }}>{statusMessage}</p>
+        )}
+      </div>
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'auto 1px auto',
+          gap: 35,
+          alignItems: 'start',
+        }}
+      >
+        {/* LEFT SIDE: USER INPUT CALENDAR */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, fit-content(100%))',
+            gap: '40px 70px',
+            alignItems: 'start',
+          }}
+        >
+          {Object.entries(months).map(([monthName, monthDates]) => {
+            const firstDay = monthDates[0].getDay();
+
+            return (
+              <section key={monthName}>
+                <h2 style={{ marginBottom: 10 }}>{monthName}</h2>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(7, 58px)',
+                    gap: 6,
+                  }}
+                >
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(
+                    (day) => (
+                      <strong
+                        key={day}
+                        style={{
+                          textAlign: 'center',
+                          fontSize: 13,
+                          fontWeight: 400
+                        }}
+                      >
+                        {day}
+                      </strong>
+                    )
+                  )}
+
+                  {Array.from({ length: firstDay }).map((_, i) => (
+                    <div key={`blank-${i}`} />
+                  ))}
+
+                  {monthDates.map((date) => {
+                    const dateKey = formatDateKey(date);
+                    const selected = selectedDates.includes(dateKey);
+
+                    return (
+                      <button
+                        key={dateKey}
+                        onClick={() => toggleDate(dateKey)}
+                        style={{
+                          height: 44,
+                          border: '1px solid #999',
+                          borderRadius: 8,
+                          background: selected ? '#41ab5d' : '#f8f8f8',
+                          color: 'black',
+                          cursor: 'pointer',
+                          fontSize: 15
+                        }}
+                      >
+                        {date.getDate()}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+
+        {/* DIVIDER */}
+        <div
+          style={{
+            width: 1,
+            height: '100%',
+            background: '#ddd',
+          }}
+        />
+
+        {/* RIGHT SIDE: HEATMAP */}
+        <aside>
+          <h2 style={{fontSize: 20, fontWeight: 700, color: '#005a32'}}> ALL AVAILABILITY</h2>
+          <p style={{ marginTop: -5, marginBottom: 20 }}>
+            *Hover over a date for a second to show availability*
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+
+          {Object.entries(months).map(([monthName, monthDates]) => {
+            const firstDay = monthDates[0].getDay();
+
+            return (
+              <section key={`heatmap-${monthName}`} style={{ marginBottom: 28 }}>
+                <h3 style={{ marginBottom: 8 }}>{monthName}</h3>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(7, 40px)',
+                    gap: 3
+                  }}
+                >
+                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
+                    <strong
+                      key={`${day}-${i}`}
+                      style={{
+                        textAlign: 'center',
+                        fontSize: 11,
+                        fontWeight: 400
+                      }}
+                    >
+                      {day}
+                    </strong>
+                  ))}
+
+                  {Array.from({ length: firstDay }).map((_, i) => (
+                    <div key={`heat-blank-${i}`} />
+                  ))}
+
+                  {monthDates.map((date) => {
+                    const dateKey = formatDateKey(date);
+                    const availableNames = getAvailableNames(dateKey);
+                    const unavailableNames = getUnavailableNames(dateKey);
+
+                    return (
+                      <button
+                        key={`heat-${dateKey}`}
+                        title={`Available: ${
+                          availableNames.length
+                            ? availableNames.join(', ')
+                            : 'Nobody'
+                        }\nUnavailable: ${
+                          unavailableNames.length
+                            ? unavailableNames.join(', ')
+                            : 'Nobody'
+                        }`}
+                        style={{
+                          height: 30,
+                          width: 40,
+                          border: '1px solid #aaa',
+                          borderRadius: 5,
+                          background: getHeatColor(dateKey),
+                          color:
+                            availableNames.length === responses.length &&
+                            responses.length > 0
+                              ? 'white'
+                              : 'black',
+                          cursor: 'default',
+                          fontSize: 12,
+                        }}
+                      >
+                        {date.getDate()}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
+        </aside>
+      </div>
+    </main>
   );
 }
