@@ -204,6 +204,27 @@ export default function Home() {
         > Load Previous Response
         </button>
 
+        <a
+          href="/complaint.jpg"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <button
+            style={{
+              marginLeft: 10,
+              padding: '10px 16px',
+              borderRadius: 8,
+              border: '1px solid #999',
+              background: '#e5e7eb',
+              color: 'black',
+              cursor: 'pointer',
+              marginTop: 10,
+            }}
+          >
+            Request Bugfix
+          </button>
+        </a>
+
         {statusMessage && (
           <p style={{ marginTop: 10, color: 'black' }}>{statusMessage}</p>
         )}
