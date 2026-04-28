@@ -13,6 +13,8 @@ export default function Home() {
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [statusMessage, setStatusMessage] = useState('');
   const [responses, setResponses] = useState<Response[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragMode, setDragMode] = useState<'select' | 'deselect'>('select');
 
   const generateDates = () => {
     const dates = [];
@@ -59,12 +61,36 @@ export default function Home() {
     fetchResponses();
   }, []);
 
-  const toggleDate = (date: string) => {
-    setSelectedDates((prev) =>
-      prev.includes(date)
-        ? prev.filter((d) => d !== date)
-        : [...prev, date]
-    );
+  const setDateSelection = (date: string, shouldSelect: boolean) => {
+    setSelectedDates((prev) => {
+      if (shouldSelect && !prev.includes(date)) {
+        return [...prev, date];
+      }
+  
+      if (!shouldSelect && prev.includes(date)) {
+        return prev.filter((d) => d !== date);
+      }
+  
+      return prev;
+    });
+  };
+  
+  const startDrag = (date: string) => {
+    const shouldSelect = !selectedDates.includes(date);
+  
+    setDragMode(shouldSelect ? 'select' : 'deselect');
+    setIsDragging(true);
+    setDateSelection(date, shouldSelect);
+  };
+  
+  const dragOverDate = (date: string) => {
+    if (!isDragging) return;
+  
+    setDateSelection(date, dragMode === 'select');
+  };
+  
+  const stopDrag = () => {
+    setIsDragging(false);
   };
 
   const loadExistingResponse = async () => {
@@ -124,24 +150,50 @@ export default function Home() {
       .map((response) => response.name);
   };
 
+  const hexToRgb = (hex: string) => {
+    const clean = hex.replace('#', '');
+    const bigint = parseInt(clean, 16);
+    return {
+      r: (bigint >> 16) & 255,
+      g: (bigint >> 8) & 255,
+      b: bigint & 255,
+    };
+  };
+  
+  const interpolate = (c1: any, c2: any, t: number) => {
+    return {
+      r: Math.round(c1.r + (c2.r - c1.r) * t),
+      g: Math.round(c1.g + (c2.g - c1.g) * t),
+      b: Math.round(c1.b + (c2.b - c1.b) * t),
+    };
+  };
+  
   const getHeatColor = (dateKey: string) => {
     if (responses.length === 0) return '#ffffff';
-
+  
     const availableCount = getAvailableNames(dateKey).length;
-    const fraction = availableCount / responses.length;
-
-    if (fraction === 0) return '#ffffff';
-    if (fraction <= 0.166) return '#e5f5e0';
-    if (fraction <= 0.332) return '#c7e9c0';
-    if (fraction <= 0.498) return '#a1d99b';
-    if (fraction <= 0.664) return '#74c476';
-    if (fraction <= 0.83) return '#41ab5d';
-    if (fraction < 1) return '#238b45';
-    return '#005a32';
+    const t = Math.max(0, Math.min(1, availableCount / responses.length));
+  
+    // 🎨 Your custom colors
+    const start = hexToRgb('#E12C2C'); // red
+    const mid   = hexToRgb('#FFD700'); // orange/yellow
+    const end   = hexToRgb('#2D9B2B'); // dark green
+ 
+    let color;
+  
+    if (t < 0.5) {
+      color = interpolate(start, mid, t * 2);
+    } else {
+      color = interpolate(mid, end, (t - 0.5) * 2);
+    }
+  
+    return `rgba(${color.r}, ${color.g}, ${color.b}, 0.85)`;
   };
 
   return (
     <main
+      onMouseUp={stopDrag}
+      onMouseLeave={stopDrag}
       style={{
         padding: 40,
         fontWeight: 400,
@@ -234,7 +286,7 @@ export default function Home() {
         style={{
           display: 'grid',
           gridTemplateColumns: 'auto 1px auto',
-          gap: 35,
+          gap: 30,
           alignItems: 'start',
         }}
       >
@@ -243,7 +295,7 @@ export default function Home() {
           style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(2, fit-content(100%))',
-            gap: '40px 70px',
+            gap: '30px 50px',
             alignItems: 'start',
           }}
         >
@@ -258,7 +310,7 @@ export default function Home() {
                   style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(7, 58px)',
-                    gap: 6,
+                    gap: 3,
                   }}
                 >
                   {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(
@@ -287,15 +339,20 @@ export default function Home() {
                     return (
                       <button
                         key={dateKey}
-                        onClick={() => toggleDate(dateKey)}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          startDrag(dateKey);
+                        }}
+                        onMouseEnter={() => dragOverDate(dateKey)}
                         style={{
                           height: 44,
                           border: '1px solid #999',
                           borderRadius: 8,
-                          background: selected ? '#41ab5d' : '#f8f8f8',
+                          background: selected ? '#2D9B2B' : '#f8f8f8',
                           color: 'black',
                           cursor: 'pointer',
-                          fontSize: 15
+                          fontSize: 15,
+                          userSelect: 'none'
                         }}
                       >
                         {date.getDate()}
@@ -319,7 +376,7 @@ export default function Home() {
 
         {/* RIGHT SIDE: HEATMAP */}
         <aside>
-          <h2 style={{fontSize: 20, fontWeight: 700, color: '#005a32'}}> ALL AVAILABILITY</h2>
+          <h2 style={{fontSize: 20, fontWeight: 700, color: '#2D9B2B'}}> ALL AVAILABILITY</h2>
           <p style={{ marginTop: -5, marginBottom: 20 }}>
             *Hover over a date for a second to show availability*
           </p>
