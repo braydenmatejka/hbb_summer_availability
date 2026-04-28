@@ -16,6 +16,17 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragMode, setDragMode] = useState<'select' | 'deselect'>('select');
 
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
+  
   const generateDates = () => {
     const dates = [];
     const start = new Date('2026-05-01T00:00:00');
@@ -282,21 +293,25 @@ export default function Home() {
         )}
       </div>
 
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'auto 1px auto',
-          gap: 30,
-          alignItems: 'start',
-        }}
-      >
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : 'auto 1px auto',
+            gap: isMobile ? 30 : 35,
+            alignItems: 'start',
+            width: '100%',
+            maxWidth: '100vw',
+            overflowX: 'hidden',
+          }}
+        >
         {/* LEFT SIDE: USER INPUT CALENDAR */}
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(2, fit-content(100%))',
-            gap: '30px 50px',
+            gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, fit-content(100%))',
+            gap: isMobile ? '30px' : '40px 70px',
             alignItems: 'start',
+            width: '100%',
           }}
         >
           {Object.entries(months).map(([monthName, monthDates]) => {
@@ -309,7 +324,7 @@ export default function Home() {
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(7, 58px)',
+                    gridTemplateColumns: isMobile ? 'repeat(7, 1fr)' : 'repeat(7, 58px)',
                     gap: 3,
                   }}
                 >
@@ -345,7 +360,7 @@ export default function Home() {
                         }}
                         onMouseEnter={() => dragOverDate(dateKey)}
                         style={{
-                          height: 44,
+                          height: isMobile ? 40 : 44,
                           border: '1px solid #999',
                           borderRadius: 8,
                           background: selected ? '#2D9B2B' : '#f8f8f8',
@@ -371,6 +386,7 @@ export default function Home() {
             width: 1,
             height: '100%',
             background: '#ddd',
+            display: isMobile ? 'none' : 'block',
           }}
         />
 
@@ -391,7 +407,7 @@ export default function Home() {
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(7, 40px)',
+                    gridTemplateColumns: isMobile ? 'repeat(7, 1fr)' : 'repeat(7, 40px)',
                     gap: 3
                   }}
                 >
@@ -430,8 +446,8 @@ export default function Home() {
                             : 'Nobody'
                         }`}
                         style={{
-                          height: 30,
-                          width: 40,
+                          width: '100%',
+                          height: isMobile ? 32 : 30,
                           border: '1px solid #aaa',
                           borderRadius: 5,
                           background: getHeatColor(dateKey),
